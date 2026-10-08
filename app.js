@@ -41,6 +41,11 @@ function render() {
  $('#active-count').textContent = active.length; $('#completed-count').textContent = done.length;
  const next = [...active].sort((a,b) => a.due.localeCompare(b.due))[0];
  $('#daily-text').textContent = !next ? 'No active tasks. Make room for your next goal.' : `Active tasks: ${active.length}; due today: ${dueToday.length}; within 3 days: ${within3.length}; within ${reminderDays} days: ${soon.length}${overdue.length ? `; ${overdue.length} are overdue` : ''}. Earliest deadline: ${next.title}.`;
+ const reminders = $('#overdue-reminders'); reminders.hidden = overdue.length === 0; reminders.replaceChildren();
+ if(overdue.length){
+   const heading=el('div',undefined,'overdue-heading');heading.append(el('strong',`Past due · ${overdue.length} unfinished ${overdue.length===1?'task':'tasks'}`),el('p','These deadlines have passed. They stay here until you mark them complete.'));reminders.append(heading);
+   for(const t of [...overdue].sort((a,b)=>a.due.localeCompare(b.due))){const row=el('div',undefined,'overdue-reminder');const body=el('div');body.append(button(t.title,()=>openEditor(t),'overdue-task-link'),el('small',`Due ${t.due.replace('T',' ')} · ${countdown(t.due).value} overdue`));row.append(body,button('Mark complete',()=>toggle(t),'overdue-complete'));reminders.append(row);}
+ }
  $('#list').hidden = view !== 'list'; $('#calendar').hidden = view !== 'calendar'; $('#timeline').hidden = view !== 'timeline';
  const visible = selectedTasks(); $('#list').replaceChildren();
  if (!visible.length) { const empty = el('div',undefined,'empty'); empty.append(el('strong', tasks.length ? 'No matching tasks' : 'Give your next goal a date'),el('p',tasks.length ? 'Try another filter or add a new task.' : 'Add your first deadline.\nCome back each day to see how much time remains.')); $('#list').append(empty); }

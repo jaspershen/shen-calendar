@@ -35,3 +35,5 @@ Run `npm test` to check calendar date boundaries and backup validation.
 ## Accounts
 
 Use Sign in / Register to access email and Google authentication. Real login remains unavailable until configured. Signed-in tasks are stored per account; signing out restores browser-only tasks. Import browser tasks explicitly to copy existing plans into your account. Accounts fetch cloud tasks on sign-in or reload; simultaneous edits use revision checks and reject stale writes. Live provider and two-user isolation tests are required before public release.
+
+Unfinished overdue tasks appear in a persistent Past due reminder section on every view, regardless of search or task filters. Mark complete removes the reminder; reopening a past-due task restores it. Reminders are shown in the page while open, not sent as background notifications.
