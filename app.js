@@ -1,9 +1,11 @@
 import { initializeAccount, saveCloud } from './account.js?v=5';
-import { daysLeft, validTask, dateKey, normalizeDue, millisecondsLeft, countdown } from './core.js';
+import { daysLeft, validTask, dateKey, normalizeDue, millisecondsLeft, countdown, urgency, matchesFilters } from './core.js?v=10';
 const $ = s => document.querySelector(s);
+const urgencyLabels={overdue:'Overdue',today:'Due today',three:'Due within 3 days',week:'Due within 7 days',later:'Later',completed:'Completed'};
 const KEY = 'shen-calendar-v1';
 let accountUser = null, accountReady = true;
 let deadlineFilter = null;
+let taskFilters={due:"all",overdue:"all",priority:"all"};
 let tasks = [], filter = 'active', view = 'list', editing = null;
 let timelineOffset = -7, timelineSpan = 30;
 let reminderDays = 7;
@@ -21,8 +23,8 @@ $('#form').elements.title.oninput = e => e.target.setCustomValidity('');
 async function toggle(t) { await save(tasks.map(x => x.id === t.id ? {...x, completed: !x.completed} : x)); }
 async function remove(t) { if (confirm(`Delete “${t.title}”? This cannot be undone.`)) await save(tasks.filter(x => x.id !== t.id)); }
 function matchesDeadline(t, now=new Date()){const left=millisecondsLeft(t.due,now);if(!deadlineFilter)return true;if(t.completed)return false;if(deadlineFilter==='overdue')return left<0;if(left<0)return false;return deadlineFilter==='today'?t.due.slice(0,10)===dateKey(now):left<=(deadlineFilter==='three'?3:reminderDays)*86400000;}
-function selectDeadline(value){deadlineFilter=deadlineFilter===value?null:value;filter='active';$('#search').value='';render();}
-function selectedTasks() { const q = $('#search').value.trim().toLowerCase(); return tasks.filter(t => (view !== 'list' || matchesDeadline(t)) && (filter === 'all' || (filter === 'completed' ? t.completed : !t.completed)) && `${t.title} ${t.notes}`.toLowerCase().includes(q)).sort((a,b) => Number(a.completed)-Number(b.completed) || a.due.localeCompare(b.due)); }
+function selectDeadline(value){deadlineFilter=deadlineFilter===value?null:value;filter='active';taskFilters={due:'all',overdue:'all',priority:'all'};syncFilterControls();$('#search').value='';render();}
+function selectedTasks() { const q = $('#search').value.trim().toLowerCase(); return tasks.filter(t => matchesFilters(t,{...taskFilters,customDays:reminderDays}) && (view !== 'list' || matchesDeadline(t)) && (filter === 'all' || (filter === 'completed' ? t.completed : !t.completed)) && `${t.title} ${t.notes}`.toLowerCase().includes(q)).sort((a,b) => Number(a.completed)-Number(b.completed) || a.due.localeCompare(b.due)); }
 function render() {
  const board = view === 'list'; $('#board-intro').hidden = !board; $('#stats').hidden = !board; $('#board-briefing').hidden = !board; $('#view-heading').hidden = board; $('#page-title').textContent = view === 'timeline' ? 'Timeline' : 'Calendar'; $('#page-description').textContent = view === 'timeline' ? 'See the time between now and your next deadline.' : 'Your deadlines, one month at a time.';
  const today = new Date(); $('#today').textContent = today.toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
@@ -62,12 +64,12 @@ function render() {
  $('#list').hidden = view !== 'list'; $('#calendar').hidden = view !== 'calendar'; $('#timeline').hidden = view !== 'timeline';
  const visible = selectedTasks(); $('#list').replaceChildren();
  if (!visible.length) { const empty = el('div',undefined,'empty'); empty.append(el('strong', tasks.length ? 'No matching tasks' : 'Give your next goal a date'),el('p',tasks.length ? 'Try another filter or add a new task.' : 'Add your first deadline.\nCome back each day to see how much time remains.')); $('#list').append(empty); }
- for (const t of visible) { const left = millisecondsLeft(t.due)/86400000, remaining = countdown(t.due), row = el('article',undefined,`task ${t.completed?'done':''}`); const check = button(t.completed?'✓':'',() => toggle(t),'check'); check.setAttribute('aria-label',`${t.completed?'Reopen':'Complete'}: ${t.title}`); const body = el('div',undefined,'task-body'); const meta = el('div',undefined,'meta'); meta.append(el('span',`Due ${t.due.replace('T',' ')}`),el('span', {high:'● High',normal:'● Normal',low:'● Low'}[t.priority],'tag')); body.append(el('h3',t.title),meta); if (t.notes) body.append(el('p',t.notes,'notes')); const count = el('div',undefined,`countdown ${!t.completed && left<0?'overdue':!t.completed && left<=reminderDays?'urgent':''}`); count.append(el('strong',t.completed?'✓':remaining.value),el('small',t.completed?'Completed':remaining.label)); const actions = el('div',undefined,'actions'); actions.append(button('Edit',() => openEditor(t)),button('Delete',() => remove(t))); row.append(check,body,count,actions); $('#list').append(row); }
+ for (const t of visible) { const left = millisecondsLeft(t.due)/86400000, remaining = countdown(t.due), row = el('article',undefined,`task urgency-${urgency(t)} ${t.completed?'done':''}`); const check = button(t.completed?'✓':'',() => toggle(t),'check'); check.setAttribute('aria-label',`${t.completed?'Reopen':'Complete'}: ${t.title}`); const body = el('div',undefined,'task-body'); const meta = el('div',undefined,'meta'); meta.append(el('span',`Due ${t.due.replace('T',' ')}`),el('span', {high:'● High',normal:'● Normal',low:'● Low'}[t.priority],'tag')); meta.append(el('span',urgencyLabels[urgency(t)],'urgency-badge'));body.append(el('h3',t.title),meta); if (t.notes) body.append(el('p',t.notes,'notes')); const count = el('div',undefined,`countdown ${!t.completed && left<0?'overdue':!t.completed && left<=reminderDays?'urgent':''}`); count.append(el('strong',t.completed?'✓':remaining.value),el('small',t.completed?'Completed':remaining.label)); const actions = el('div',undefined,'actions'); actions.append(button('Edit',() => openEditor(t)),button('Delete',() => remove(t))); row.append(check,body,count,actions); $('#list').append(row); }
  if (view === 'calendar') renderCalendar(visible);
  if (view === 'timeline') renderTimeline(visible);
  document.querySelectorAll('.nav').forEach(b=>b.setAttribute('aria-current',b.classList.contains('active')?'page':'false'));
 }
-function renderCalendar(visible) { const root = $('#calendar'); root.replaceChildren(); const bar = el('div',undefined,'month-bar'); bar.append(button('←',()=>{month.setMonth(month.getMonth()-1);render();}),el('strong',month.toLocaleDateString('en-US',{year:'numeric',month:'long'})),button('→',()=>{month.setMonth(month.getMonth()+1);render();})); root.append(bar); const grid=el('div',undefined,'grid'); for(const name of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) grid.append(el('div',name,'weekday')); const offset=(month.getDay()+6)%7; for(let i=0;i<offset;i++) grid.append(el('div',undefined,'day blank')); const total=new Date(month.getFullYear(),month.getMonth()+1,0).getDate(); for(let day=1;day<=total;day++){const key=dateKey(new Date(month.getFullYear(),month.getMonth(),day)); const cell=el('div',String(day),`day ${key===dateKey(new Date())?'today':''}`); for(const t of visible.filter(t=>t.due.slice(0,10)===key)){ const b=button(`${t.due.slice(11)} ${t.title}`,()=>openEditor(t),`calendar-task ${t.completed?'done':''}`); b.title=`${t.title} — ${t.due.replace('T',' ')}`; cell.append(b); }grid.append(cell);}root.append(grid); }
+function renderCalendar(visible) { const root = $('#calendar'); root.replaceChildren(); const bar = el('div',undefined,'month-bar'); bar.append(button('←',()=>{month.setMonth(month.getMonth()-1);render();}),el('strong',month.toLocaleDateString('en-US',{year:'numeric',month:'long'})),button('→',()=>{month.setMonth(month.getMonth()+1);render();})); root.append(bar); const grid=el('div',undefined,'grid'); for(const name of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) grid.append(el('div',name,'weekday')); const offset=(month.getDay()+6)%7; for(let i=0;i<offset;i++) grid.append(el('div',undefined,'day blank')); const total=new Date(month.getFullYear(),month.getMonth()+1,0).getDate(); for(let day=1;day<=total;day++){const key=dateKey(new Date(month.getFullYear(),month.getMonth(),day)); const cell=el('div',String(day),`day ${key===dateKey(new Date())?'today':''}`); for(const t of visible.filter(t=>t.due.slice(0,10)===key)){ const b=button(`${t.due.slice(11)} ${t.title}`,()=>openEditor(t),`calendar-task urgency-${urgency(t)} ${t.completed?'done':''}`); b.title=`${t.title} — ${t.due.replace('T',' ')}`; cell.append(b); }grid.append(cell);}root.append(grid); }
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{deadlineFilter=null;filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('selected',x===b));render();});
 $('#search').oninput=render;
 function setView(v){view=v;$('#overview').classList.toggle('active',v==='list');$('#show-calendar').classList.toggle('active',v==='calendar');$('#show-timeline').classList.toggle('active',v==='timeline');$('#view-name').textContent={list:'Deadline board',calendar:'Calendar',timeline:'Timeline'}[v];location.hash=v;render();}
@@ -96,14 +98,14 @@ function renderTimeline(visible) {
  const todayKey=dateKey(new Date());
  for(const d of dates){const th=el('th',undefined,`timeline-date ${dateKey(d)===todayKey?'is-today':''}`);th.scope='col';th.append(el('small',d.toLocaleDateString('en-US',{month:'short'})),el('strong',d.getDate()),el('small',dateKey(d)===todayKey?'TODAY':d.toLocaleDateString('en-US',{weekday:'short'})));hr.append(th);}head.append(hr);table.append(head);
  const tbody=el('tbody');
- for(const t of visible){const row=el('tr',undefined,t.completed?'timeline-done':'');const label=el('th',undefined,'timeline-label');label.scope='row';const left=millisecondsLeft(t.due);const remaining=countdown(t.due);const status=t.completed?'Completed':`${remaining.value} ${remaining.label}`;label.append(button(t.title,()=>openEditor(t),'timeline-task-name'),el('small',`${t.due.replace('T',' ')} · ${status}`));row.append(label);
+ for(const t of visible){const row=el('tr',undefined,`urgency-${urgency(t)} ${t.completed?'timeline-done':''}`);const label=el('th',undefined,'timeline-label');label.scope='row';const left=millisecondsLeft(t.due);const remaining=countdown(t.due);const status=t.completed?'Completed':`${remaining.value} ${remaining.label}`;label.append(button(t.title,()=>openEditor(t),'timeline-task-name'),el('small',`${t.due.replace('T',' ')} · ${status}`));row.append(label);
  const dueIndex=daysLeft(t.due,start),todayIndex=daysLeft(todayKey,start);
  for(let i=0;i<dates.length;i++){const key=dateKey(dates[i]);const cell=el('td',undefined,`timeline-cell ${key===todayKey?'is-today':''}`);const low=Math.min(todayIndex,dueIndex),high=Math.max(todayIndex,dueIndex);if(i>=low&&i<=high){const bar=button(i===dueIndex?'◆':i===0&&dueIndex<0?'←':i===dates.length-1&&dueIndex>=dates.length?'→':'',()=>openEditor(t),`timeline-bar ${left<0?'late':''} ${t.completed?'finished':''} ${i===low?'bar-start':''} ${i===high?'bar-end':''}`);bar.title=`${t.title} — Due ${t.due.replace('T',' ')} — ${status}`;bar.setAttribute('aria-label',bar.title);cell.append(bar);}row.append(cell);}tbody.append(row);}
  table.append(tbody);scroll.append(table);root.append(scroll);
  const mobile = el('div',undefined,'mobile-timeline');
  for(const t of visible){
    const left=millisecondsLeft(t.due),remaining=countdown(t.due),status=t.completed?'Completed':`${remaining.value} ${remaining.label}`;
-   const card=el('article',undefined,`mobile-timeline-card ${left<0?'late':''} ${t.completed?'finished':''}`);
+   const card=el('article',undefined,`mobile-timeline-card urgency-${urgency(t)} ${left<0?'late':''} ${t.completed?'finished':''}`);
    const heading=el('div',undefined,'mobile-timeline-heading');heading.append(button(t.title,()=>openEditor(t),'timeline-task-name'),el('span',status,'mobile-status'));
    card.append(heading,el('p',`Due ${t.due.replace('T',' ')}`,'mobile-due'));
    const track=el('div',undefined,'mobile-track');
@@ -115,9 +117,14 @@ function renderTimeline(visible) {
    card.append(track);const axis=el('div',undefined,'mobile-axis');axis.append(el('span',fmt(start)),el('span',fmt(dates.at(-1))));card.append(axis);mobile.append(card);
  }
  root.append(mobile);
- root.append(el('div','◆ Deadline   ·   Indigo: time remaining   ·   Rose: overdue   ·   Gray: completed   ·   Arrows: deadline outside this range','timeline-legend'));
+ root.append(el('div','◆ Deadline   ·   Red: today · Orange: 3 days · Blue: 7 days · Green: later   ·   Purple: overdue   ·   Gray: completed   ·   Arrows: deadline outside this range','timeline-legend'));
 }
 
 initializeAccount({notify:toast,getLocalTasks:()=>{try{const local=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(local)?local.filter(validTask).map(t=>({...t,due:normalizeDue(t.due)})):[];}catch{return[];}},onState:state=>{accountUser=state.user;accountReady=state.ready;$('#editor').close();if(accountUser)tasks=state.tasks;else{try{tasks=JSON.parse(localStorage.getItem(KEY)||'[]').filter(validTask).map(t=>({...t,due:normalizeDue(t.due)}));}catch{tasks=[];}}$('#add').disabled=!accountReady;$('#view-add').disabled=!accountReady;render();}});
 
-$('#clear-deadline-filter').onclick=()=>{deadlineFilter=null;render();};
+$('#clear-deadline-filter').onclick=()=>{deadlineFilter=null;taskFilters={due:'all',overdue:'all',priority:'all'};syncFilterControls();render();};
+
+
+function syncFilterControls(){for(const key of ['due','overdue','priority'])$(`#filter-${key}`).value=taskFilters[key];}
+for(const key of ['due','overdue','priority'])$(`#filter-${key}`).onchange=e=>{deadlineFilter=null;taskFilters[key]=e.target.value;render();};
+$('#reset-task-filters').onclick=()=>{deadlineFilter=null;taskFilters={due:'all',overdue:'all',priority:'all'};syncFilterControls();$('#search').value='';render();};
