@@ -1,0 +1,12 @@
+.DS_Store
+_site/
+node_modules/
+shen-calendar-*.json
+preview.png
+timeline-preview.png
+deadline-preview.png
+redesign-*.png
+reminders-preview.png
+account-preview.png
+account-connected.png
+palette-*.png
