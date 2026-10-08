@@ -39,3 +39,5 @@ Use Sign in / Register to access email and Google authentication. Real login rem
 Unfinished overdue tasks appear in a persistent Past due reminder section on every view, regardless of search or task filters. Mark complete removes the reminder; reopening a past-due task restores it. Reminders are shown in the page while open, not sent as background notifications.
 
 The main introduction, due statistics, and daily briefing appear only on Deadline board. Timeline and Calendar have compact page headings and retain an Add task action.
+
+Click a due statistic or Overdue to filter the board list. Click it again or Clear filter to reset. Status tabs clear the deadline filter. Clicking a metric clears search, so its list corresponds to the displayed count; subsequent searches narrow that list. Timeline and Calendar are not restricted by the board deadline filter.

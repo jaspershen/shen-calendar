@@ -3,6 +3,7 @@ import { daysLeft, validTask, dateKey, normalizeDue, millisecondsLeft, countdown
 const $ = s => document.querySelector(s);
 const KEY = 'shen-calendar-v1';
 let accountUser = null, accountReady = true;
+let deadlineFilter = null;
 let tasks = [], filter = 'active', view = 'list', editing = null;
 let timelineOffset = -7, timelineSpan = 30;
 let reminderDays = 7;
@@ -19,7 +20,9 @@ $('#form').onsubmit = async e => { e.preventDefault(); const f = e.target.elemen
 $('#form').elements.title.oninput = e => e.target.setCustomValidity('');
 async function toggle(t) { await save(tasks.map(x => x.id === t.id ? {...x, completed: !x.completed} : x)); }
 async function remove(t) { if (confirm(`Delete “${t.title}”? This cannot be undone.`)) await save(tasks.filter(x => x.id !== t.id)); }
-function selectedTasks() { const q = $('#search').value.trim().toLowerCase(); return tasks.filter(t => (filter === 'all' || (filter === 'completed' ? t.completed : !t.completed)) && `${t.title} ${t.notes}`.toLowerCase().includes(q)).sort((a,b) => Number(a.completed)-Number(b.completed) || a.due.localeCompare(b.due)); }
+function matchesDeadline(t, now=new Date()){const left=millisecondsLeft(t.due,now);if(!deadlineFilter)return true;if(t.completed)return false;if(deadlineFilter==='overdue')return left<0;if(left<0)return false;return deadlineFilter==='today'?t.due.slice(0,10)===dateKey(now):left<=(deadlineFilter==='three'?3:reminderDays)*86400000;}
+function selectDeadline(value){deadlineFilter=deadlineFilter===value?null:value;filter='active';$('#search').value='';render();}
+function selectedTasks() { const q = $('#search').value.trim().toLowerCase(); return tasks.filter(t => (view !== 'list' || matchesDeadline(t)) && (filter === 'all' || (filter === 'completed' ? t.completed : !t.completed)) && `${t.title} ${t.notes}`.toLowerCase().includes(q)).sort((a,b) => Number(a.completed)-Number(b.completed) || a.due.localeCompare(b.due)); }
 function render() {
  const board = view === 'list'; $('#board-intro').hidden = !board; $('#stats').hidden = !board; $('#board-briefing').hidden = !board; $('#view-heading').hidden = board; $('#page-title').textContent = view === 'timeline' ? 'Timeline' : 'Calendar'; $('#page-description').textContent = view === 'timeline' ? 'See the time between now and your next deadline.' : 'Your deadlines, one month at a time.';
  const today = new Date(); $('#today').textContent = today.toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
@@ -36,9 +39,18 @@ function render() {
      input.onchange=()=>{const n=Number(input.value);if(!Number.isInteger(n)||n<1||n>365){input.value=reminderDays;toast('Choose a whole number from 1 to 365 days.');return;}reminderDays=n;try{localStorage.setItem('shen-calendar-reminder-days',String(n));}catch{toast('Your preference could not be saved in this browser.');}render();};
      control.append(input,el('span','days'),button('Apply',()=>input.onchange(),'apply-window'));e.append(control);
    } else e.append(el('label',label));
-   e.append(el('strong',String(note).padStart(2,'0')),el('small',hint));return e;
+   const value=['today','three','custom',null,'overdue',null][i];
+   const metric=button(String(note).padStart(2,'0'),()=>{if(value)selectDeadline(value);else{deadlineFilter=null;filter=i===5?'completed':'active';render();}},'stat-filter-button');
+   metric.setAttribute('aria-label',`Filter tasks: ${label}`);metric.setAttribute('aria-pressed',String(value ? deadlineFilter===value : !deadlineFilter && filter===(i===5?'completed':'active')));
+   e.classList.toggle('stat-selected',Boolean(value&&deadlineFilter===value));
+   e.append(metric,el('small',hint));
+   if(value){e.onclick=event=>{if(event.target.closest('button,input,label.window-label'))return;selectDeadline(value);};}
+   return e;
  });
  $('#stats').replaceChildren(...cards);
+ document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('selected',b.dataset.filter===filter));
+ $('#deadline-filter-status').hidden = !deadlineFilter || !board;
+ $('#deadline-filter-label').textContent = {today:'Due today',three:'Due within 3 days',custom:`Due within ${reminderDays} days`,overdue:'Overdue'}[deadlineFilter] || '';
  $('#active-count').textContent = active.length; $('#completed-count').textContent = done.length;
  const next = [...active].sort((a,b) => a.due.localeCompare(b.due))[0];
  $('#daily-text').textContent = !next ? 'No active tasks. Make room for your next goal.' : `Active tasks: ${active.length}; due today: ${dueToday.length}; within 3 days: ${within3.length}; within ${reminderDays} days: ${soon.length}${overdue.length ? `; ${overdue.length} are overdue` : ''}. Earliest deadline: ${next.title}.`;
@@ -56,7 +68,7 @@ function render() {
  document.querySelectorAll('.nav').forEach(b=>b.setAttribute('aria-current',b.classList.contains('active')?'page':'false'));
 }
 function renderCalendar(visible) { const root = $('#calendar'); root.replaceChildren(); const bar = el('div',undefined,'month-bar'); bar.append(button('←',()=>{month.setMonth(month.getMonth()-1);render();}),el('strong',month.toLocaleDateString('en-US',{year:'numeric',month:'long'})),button('→',()=>{month.setMonth(month.getMonth()+1);render();})); root.append(bar); const grid=el('div',undefined,'grid'); for(const name of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) grid.append(el('div',name,'weekday')); const offset=(month.getDay()+6)%7; for(let i=0;i<offset;i++) grid.append(el('div',undefined,'day blank')); const total=new Date(month.getFullYear(),month.getMonth()+1,0).getDate(); for(let day=1;day<=total;day++){const key=dateKey(new Date(month.getFullYear(),month.getMonth(),day)); const cell=el('div',String(day),`day ${key===dateKey(new Date())?'today':''}`); for(const t of visible.filter(t=>t.due.slice(0,10)===key)){ const b=button(`${t.due.slice(11)} ${t.title}`,()=>openEditor(t),`calendar-task ${t.completed?'done':''}`); b.title=`${t.title} — ${t.due.replace('T',' ')}`; cell.append(b); }grid.append(cell);}root.append(grid); }
-document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('selected',x===b));render();});
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{deadlineFilter=null;filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('selected',x===b));render();});
 $('#search').oninput=render;
 function setView(v){view=v;$('#overview').classList.toggle('active',v==='list');$('#show-calendar').classList.toggle('active',v==='calendar');$('#show-timeline').classList.toggle('active',v==='timeline');$('#view-name').textContent={list:'Deadline board',calendar:'Calendar',timeline:'Timeline'}[v];location.hash=v;render();}
 $('#show-timeline').onclick=()=>setView('timeline'); $('#overview').onclick=()=>setView('list'); $('#show-calendar').onclick=()=>setView('calendar');
@@ -107,3 +119,5 @@ function renderTimeline(visible) {
 }
 
 initializeAccount({notify:toast,getLocalTasks:()=>{try{const local=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(local)?local.filter(validTask).map(t=>({...t,due:normalizeDue(t.due)})):[];}catch{return[];}},onState:state=>{accountUser=state.user;accountReady=state.ready;$('#editor').close();if(accountUser)tasks=state.tasks;else{try{tasks=JSON.parse(localStorage.getItem(KEY)||'[]').filter(validTask).map(t=>({...t,due:normalizeDue(t.due)}));}catch{tasks=[];}}$('#add').disabled=!accountReady;$('#view-add').disabled=!accountReady;render();}});
+
+$('#clear-deadline-filter').onclick=()=>{deadlineFilter=null;render();};
