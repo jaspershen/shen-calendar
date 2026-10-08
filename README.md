@@ -41,3 +41,7 @@ Unfinished overdue tasks appear in a persistent Past due reminder section on eve
 The main introduction, due statistics, and daily briefing appear only on Deadline board. Timeline and Calendar have compact page headings and retain an Add task action.
 
 Click a due statistic or Overdue to filter the board list. Click it again or Clear filter to reset. Status tabs clear the deadline filter. Clicking a metric clears search, so its list corresponds to the displayed count; subsequent searches narrow that list. Timeline and Calendar are not restricted by the board deadline filter.
+
+## Import Outlook calendars
+
+Use Import calendar to choose an `.ics` export, preview events, and import selected items without replacing existing tasks. Event start times become deadlines; VTODO uses DUE. All-day deadlines use 23:59. UTC and supported IANA time zones are converted to device local time. Common Outlook Windows zones are mapped; unsupported zones, cancelled events, and recurring items are skipped with an explicit report. Reimporting the same event identity skips duplicates. This is a snapshot import, not automatic Outlook synchronization. Classic Outlook: Calendar → File → Save Calendar, then choose date range and export `.ics`.
