@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: mkdir _site && cp index.html style.css app.js core.js account.js config.js calendar-import.js _site/
+      - run: mkdir _site && cp index.html style.css app.js core.js account.js config.js calendar-import.js note-images.js _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
