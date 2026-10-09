@@ -1,5 +1,5 @@
 import { authConfig } from './config.js?v=4';
-import { validTask, normalizeDue } from './core.js?v=12';
+import { validTask, normalizeDue } from './core.js?v=14';
 let client=null,user=null,revision=0,loading=false,writing=false,generation=0;
 const $=s=>document.querySelector(s);
 export async function initializeAccount({onState,notify,getLocalTasks}) {

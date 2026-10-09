@@ -1,7 +1,7 @@
 import { compressNoteImage } from './note-images.js';
 import { parseCalendar, calendarTaskId } from './calendar-import.js';
 import { initializeAccount, saveCloud } from './account.js?v=5';
-import { daysLeft, validTask, dateKey, normalizeDue, millisecondsLeft, countdown, urgency, matchesFilters } from './core.js?v=12';
+import { daysLeft, validTask, dateKey, normalizeDue, millisecondsLeft, countdown, urgency, matchesFilters } from './core.js?v=14';
 const $ = s => document.querySelector(s);
 const urgencyLabels={overdue:'Overdue',today:'Due today',three:'Due within 3 days',week:'Due within 7 days',later:'Later',completed:'Completed'};
 const KEY = 'shen-calendar-v1';
